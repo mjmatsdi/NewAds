@@ -4,11 +4,18 @@ using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using TwinCAT.Ads;
 using TwinCAT.TypeSystem;
+using System.Diagnostics;
 
+/*
+    TODO - what is this: "Ads Error: 1 : [AdsClient:TwinCAT.Ads.Internal.INotificationReceiver.OnNotificationError()] Exception: Could not load type 'Invalid_Token.0x020000CF' from assembly 'NewAds, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null'."
+
+*/
 namespace NewAds
 {
     internal class Program
     {
+        static bool Quit = false;
+
         static async Task Main(string[] args) {
             //ReadInt();
             //ReadString();
@@ -18,17 +25,14 @@ namespace NewAds
 
             using (AdsClient client = new AdsClient()) {
                 // Add the Notification event handler
-                client.AdsNotification += Client_AdsNotification2;
+                client.AdsNotification += Client_AdsNotification_BufferReady;
 
                 // Connect to target
                 client.Connect(AmsNetId.Local, 851);
                 uint notificationHandle = 0;
 
-                //int size = sizeof(Int16);
-                //ResultHandle result = await client.AddDeviceNotificationAsync("MAIN.nCounter", size, new NotificationSettings(AdsTransMode.OnChange, 200, 0), null, cancel);
-
                 int size = sizeof(bool);
-                ResultHandle result = await client.AddDeviceNotificationAsync("vMessages.Msgs_SCP.Ready", size, new NotificationSettings(AdsTransMode.OnChange, 200, 0), null, cancel);
+                ResultHandle result = await client.AddDeviceNotificationAsync("vMessages.Msgs_SCP.Ready", size, new NotificationSettings(AdsTransMode.OnChange, 10, 0), null, cancel);
 
                 if (result.Succeeded) {
                     notificationHandle = result.Handle;
@@ -114,35 +118,36 @@ namespace NewAds
                 }
             }
         }
-        static async Task RegisterNotificationsAsync() {
-            CancellationToken cancel = CancellationToken.None;
+        //static async Task RegisterNotificationsAsync() {
+        //    CancellationToken cancel = CancellationToken.None;
 
-            using (AdsClient client = new AdsClient()) {
-                // Add the Notification event handler
-                client.AdsNotification += Client_AdsNotification2;
+        //    using (AdsClient client = new AdsClient()) {
+        //        // Add the Notification event handler
+        //        client.AdsNotification += Client_AdsNotification2;
 
-                // Connect to target
-                client.Connect(AmsNetId.Local, 851);
-                uint notificationHandle = 0;
+        //        // Connect to target
+        //        client.Connect(AmsNetId.Local, 851);
+        //        uint notificationHandle = 0;
 
-                // Notification to a DINT Type (UINT32)
-                // Check for change every 200 ms
+        //        // Notification to a DINT Type (UINT32)
+        //        // Check for change every 200 ms
 
-                int size = sizeof(Int32);
+        //        int size = sizeof(Int32);
 
-                ResultHandle result = await client.AddDeviceNotificationAsync("MAIN.nCounter", size, new NotificationSettings(AdsTransMode.OnChange, 200, 0), null, cancel);
+        //        ResultHandle result = await client.AddDeviceNotificationAsync("MAIN.nCounter", size, new NotificationSettings(AdsTransMode.OnChange, 200, 0), null, cancel);
 
-                if (result.Succeeded) {
-                    notificationHandle = result.Handle;
-                    await Task.Delay(5000); // Wait asynchronously without blocking the UI Thread.
-                                            // Unregister the Event / Handle
-                    ResultAds result2 = await client.DeleteDeviceNotificationAsync(notificationHandle, cancel);
-                }
-                client.AdsNotification -= Client_AdsNotification2;
-            }
-        }
+        //        if (result.Succeeded) {
+        //            notificationHandle = result.Handle;
+        //            await Task.Delay(5000); // Wait asynchronously without blocking the UI Thread.
+        //                                    // Unregister the Event / Handle
+        //            ResultAds result2 = await client.DeleteDeviceNotificationAsync(notificationHandle, cancel);
+        //        }
+        //        client.AdsNotification -= Client_AdsNotification2;
+        //    }
+        //}
 
-        static void Client_AdsNotification2(object sender, AdsNotificationEventArgs e) {
+        static void Client_AdsNotification_BufferReady(object sender, AdsNotificationEventArgs e) {
+            Trace.WriteLine("BufferReady state changed to " + e.Data.Span[0].ToString());
             // Or here we know about UDINT type --> can be marshalled as UINT32
             //uint nCounter = BinaryPrimitives.ReadUInt32LittleEndian(e.Data.Span);
             //Int16 nCounter = BinaryPrimitives.ReadInt16LittleEndian(e.Data.Span);
@@ -159,7 +164,7 @@ namespace NewAds
 
                 try {
                     // Read the PLC buffer
-                    int byteSize = 2000; // the buffer is actually 4K
+                    int byteSize = 4000; // the buffer is actually 4K
                     PrimitiveTypeMarshaler converter = new PrimitiveTypeMarshaler(StringMarshaler.DefaultEncoding);
                     byte[] buffer = new byte[byteSize];
                     int readBytes = client.Read(bufferHandle, buffer.AsMemory());
@@ -173,8 +178,9 @@ namespace NewAds
                     converter.Marshal(value, writeBuffer);
                     client.Write(bufferHandle, writeBuffer);
 
-                    client.WriteAny(readyHandle, false);
                     client.WriteAny(ackHandle, true);
+                    client.WriteAny(readyHandle, false);
+                    //Thread.Sleep(100);
                 }
                 finally {
                     client.DeleteVariableHandle(readyHandle);

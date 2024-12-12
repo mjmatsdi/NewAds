@@ -15,6 +15,9 @@ namespace NewAds
     internal class Program
     {
         static bool Quit = false;
+        static bool AdsIsRunning;
+        static uint ackHandle;
+        static uint bufferHandle;
 
         static async Task Main(string[] args) {
             //ReadInt();
@@ -22,25 +25,37 @@ namespace NewAds
             //Thread.Sleep(5000);
 
             CancellationToken cancel = CancellationToken.None;
+            while (!Quit) {
 
-            using (AdsClient client = new AdsClient()) {
-                // Add the Notification event handler
-                client.AdsNotification += Client_AdsNotification_BufferReady;
+                using (AdsClient client = new AdsClient()) {
+                    // Add the Notification event handler
+                    client.AdsNotification += Client_AdsNotification;
 
-                // Connect to target
-                client.Connect(AmsNetId.Local, 851);
-                uint notificationHandle = 0;
+                    // Connect to target
+                    client.Connect(AmsNetId.Local, 851);
 
-                int size = sizeof(bool);
-                ResultHandle result = await client.AddDeviceNotificationAsync("vMessages.Msgs_SCP.Ready", size, new NotificationSettings(AdsTransMode.OnChange, 10, 0), null, cancel);
+                    //var adsState = client.ReadState();
 
-                if (result.Succeeded) {
-                    notificationHandle = result.Handle;
-                }
+                    client.AdsStateChanged += Client_AdsStateChanged;
+                    //uint notificationHandle = 0;
 
-                // wait indefinitely
-                while (true) {
-                    Thread.Sleep(500);
+                    int size = sizeof(bool);
+                    ResultHandle result = await client.AddDeviceNotificationAsync("vMessages.Msgs_SCP.Ready", size, new NotificationSettings(AdsTransMode.OnChange, 10, 0), null, cancel);
+
+                    // wait indefinitely
+                    int i = 0;
+                    //while (client.ReadState().AdsState == AdsState.Run) {
+                    while (AdsIsRunning) {
+                        //i++;
+                        //Console.WriteLine(i.ToString() + " : state = " + adsState.AdsState.ToString() + " : Connected = " + client.IsConnected.ToString());   // always says "Run"
+                                                                                                                                                              //Console.WriteLine(i.ToString() + " : state = " + adsState.DeviceState.ToString());   // always says "0"
+                        //Thread.Sleep(1000);
+                    }
+
+                    client.DeleteDeviceNotification(result.Handle);
+                    client.AdsStateChanged -= Client_AdsStateChanged;
+                    Thread.Sleep(2000);
+
                 }
             }
 
@@ -146,21 +161,20 @@ namespace NewAds
         //    }
         //}
 
-        static void Client_AdsNotification_BufferReady(object sender, AdsNotificationEventArgs e) {
-            Trace.WriteLine("BufferReady state changed to " + e.Data.Span[0].ToString());
-            // Or here we know about UDINT type --> can be marshalled as UINT32
-            //uint nCounter = BinaryPrimitives.ReadUInt32LittleEndian(e.Data.Span);
-            //Int16 nCounter = BinaryPrimitives.ReadInt16LittleEndian(e.Data.Span);
+        private static void Client_AdsStateChanged(object? sender, AdsStateChangedEventArgs e) {
+            Trace.WriteLine("AdsStateChanged(" + e.State.AdsState.ToString() + ")");
+            AdsIsRunning = (e.State.AdsState == AdsState.Run);
+        }
 
-            // this works to read a BOOL
-            Byte nCounter = e.Data.Span[0];
-            //Console.WriteLine("new value = " + nCounter.ToString());
+        static void Client_AdsNotification(object sender, AdsNotificationEventArgs e) {
+            Byte readyFlag = e.Data.Span[0];
 
-            if (nCounter > 0 && sender != null) {
+            if (readyFlag > 0 && sender != null) {
                 AdsClient client = (AdsClient)sender;
-                uint readyHandle = client.CreateVariableHandle("vMessages.Msgs_SCP.Ready");
-                uint bufferHandle = client.CreateVariableHandle("vMessages.Msgs_SCP.Sending");
-                uint ackHandle = client.CreateVariableHandle("vMessages.Msgs_SCP.Ack");
+                if (ackHandle == 0)
+                    ackHandle = client.CreateVariableHandle("vMessages.Msgs_SCP.Ack");
+                if (bufferHandle == 0)
+                    bufferHandle = client.CreateVariableHandle("vMessages.Msgs_SCP.Sending");
 
                 try {
                     // Read the PLC buffer
@@ -171,19 +185,12 @@ namespace NewAds
                     string value = null;
                     converter.Unmarshal<string>(buffer.AsSpan(), out value);
                     Console.WriteLine("Buffer [" + value + "]");
-
-                    // Clear the buffer
-                    byte[] writeBuffer = new byte[byteSize];
-                    value = "";
-                    converter.Marshal(value, writeBuffer);
-                    client.Write(bufferHandle, writeBuffer);
+                    if (value.ToUpper() == "QUIT") Quit = true;
 
                     client.WriteAny(ackHandle, true);
-                    client.WriteAny(readyHandle, false);
-                    //Thread.Sleep(100);
                 }
-                finally {
-                    client.DeleteVariableHandle(readyHandle);
+                catch {
+                    Trace.WriteLine("exception when processing sending buffer");
                     client.DeleteVariableHandle(bufferHandle);
                     client.DeleteVariableHandle(ackHandle);
                 }

@@ -24,39 +24,41 @@ namespace NewAds
             //ReadString();
             //Thread.Sleep(5000);
 
-            CancellationToken cancel = CancellationToken.None;
-            while (!Quit) {
+            //CancellationToken cancel = CancellationToken.None;
+            try {
+                AdsClient client = new AdsClient();
+                // Connect to target
+                client.Connect(AmsNetId.Local, 851);
+                client.AdsStateChanged += Client_AdsStateChanged;
 
-                using (AdsClient client = new AdsClient()) {
+                while (!Quit) {
                     // Add the Notification event handler
                     client.AdsNotification += Client_AdsNotification;
-
-                    // Connect to target
-                    client.Connect(AmsNetId.Local, 851);
-
-                    //var adsState = client.ReadState();
-
-                    client.AdsStateChanged += Client_AdsStateChanged;
-                    //uint notificationHandle = 0;
-
                     int size = sizeof(bool);
-                    ResultHandle result = await client.AddDeviceNotificationAsync("vMessages.Msgs_SCP.Ready", size, new NotificationSettings(AdsTransMode.OnChange, 10, 0), null, cancel);
+                    //ResultHandle result = await client.AddDeviceNotificationAsync("vMessages.Msgs_SCP.Ready", size, new NotificationSettings(AdsTransMode.OnChange, 10, 0), null, cancel);
+                    uint notificationHandle = client.AddDeviceNotification("vMessages.Msgs_SCP.Ready", size, new NotificationSettings(AdsTransMode.OnChange, 10, 0), null);
 
+                    //int i = 0;
                     // wait indefinitely
-                    int i = 0;
                     //while (client.ReadState().AdsState == AdsState.Run) {
                     while (AdsIsRunning) {
                         //i++;
                         //Console.WriteLine(i.ToString() + " : state = " + adsState.AdsState.ToString() + " : Connected = " + client.IsConnected.ToString());   // always says "Run"
-                                                                                                                                                              //Console.WriteLine(i.ToString() + " : state = " + adsState.DeviceState.ToString());   // always says "0"
-                        //Thread.Sleep(1000);
+                        //Console.WriteLine(i.ToString() + " : state = " + adsState.DeviceState.ToString());   // always says "0"
+                        Thread.Sleep(1000);
                     }
-
-                    client.DeleteDeviceNotification(result.Handle);
-                    client.AdsStateChanged -= Client_AdsStateChanged;
+                    client.TryDeleteDeviceNotification(notificationHandle);
+                    //client.DeleteDeviceNotification(notificationHandle);
+                    //client.DeleteDeviceNotification(result.Handle);
+                    client.AdsNotification -= Client_AdsNotification;
                     Thread.Sleep(2000);
-
                 }
+            }
+            catch (TwinCAT.Ads.AdsErrorException e) {
+                Console.WriteLine("Ads was NOT happy: " + e.Message);
+            }
+            catch {
+                Console.WriteLine("Not compatible with TwinCAT ADS.");
             }
 
         }

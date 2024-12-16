@@ -1,0 +1,15 @@
+When first starting the dev vm
+-load eHub plc project - do NOT activate it or put it in RUN mode.
+-run the NewAds console app
+-result:
+    Ads Error: 1 : [AdsClient:TwinCAT.Ads.Internal.INotificationReceiver.OnNotificationError()] 
+    Exception: Couldn't register for AdsState change Notifications on the connected ADS Server. 
+    Don't register for AdsClient.AdsStateChanged events! (Target port could not be found. 
+    (AdsErrorCode: 6, 0x6))
+    ...
+    Exception thrown: 'TwinCAT.Ads.AdsErrorException' in TwinCAT.Ads.dll
+    The program '[6684] NewAds.exe' has exited with code 0 (0x0).
+
+the first part (Ads Error 1...) did not throw an exception when I stepped thru the code.
+The exception was thrown when I hit the "client.AddDeviceNotification("vMessages.Msgs_SCP.Ready",..." 
+code.

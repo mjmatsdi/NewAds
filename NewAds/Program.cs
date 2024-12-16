@@ -31,9 +31,9 @@ namespace NewAds
                 client.Connect(AmsNetId.Local, 851);
                 client.AdsStateChanged += Client_AdsStateChanged;
 
+                // Add the Notification event handler
+                client.AdsNotification += Client_AdsNotification;
                 while (!Quit) {
-                    // Add the Notification event handler
-                    client.AdsNotification += Client_AdsNotification;
                     int size = sizeof(bool);
                     //ResultHandle result = await client.AddDeviceNotificationAsync("vMessages.Msgs_SCP.Ready", size, new NotificationSettings(AdsTransMode.OnChange, 10, 0), null, cancel);
                     uint notificationHandle = client.AddDeviceNotification("vMessages.Msgs_SCP.Ready", size, new NotificationSettings(AdsTransMode.OnChange, 10, 0), null);
@@ -50,9 +50,9 @@ namespace NewAds
                     client.TryDeleteDeviceNotification(notificationHandle);
                     //client.DeleteDeviceNotification(notificationHandle);
                     //client.DeleteDeviceNotification(result.Handle);
-                    client.AdsNotification -= Client_AdsNotification;
                     Thread.Sleep(2000);
                 }
+                //client.AdsNotification -= Client_AdsNotification;
             }
             catch (TwinCAT.Ads.AdsErrorException e) {
                 Console.WriteLine("Ads was NOT happy: " + e.Message);

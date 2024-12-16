@@ -13,3 +13,17 @@ When first starting the dev vm
 the first part (Ads Error 1...) did not throw an exception when I stepped thru the code.
 The exception was thrown when I hit the "client.AddDeviceNotification("vMessages.Msgs_SCP.Ready",..." 
 code.
+
+
+Try again with some code re-shuffling and a new invl;aid notificatyion handler
+When first starting the dev vm
+-load eHub plc project - do NOT activate it or put it in RUN mode.
+-run the NewAds console app
+-result: on the line where I ask for the Ads state (client.ReadState().AdsState) it throws
+    Exception thrown: 'TwinCAT.Ads.AdsErrorException' in TwinCAT.Ads.dll
+    Target port could not be found.
+reading the ads state occurs immediately after the Ads.Connect call
+
+repeating the above but activating the project and loading it and running it, I don't get that
+"Don't register for AdsClient.AdsStateChanged events!" in the output window.
+

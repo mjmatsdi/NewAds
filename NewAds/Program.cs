@@ -5,6 +5,7 @@ using System.Threading.Channels;
 using TwinCAT.Ads;
 using TwinCAT.TypeSystem;
 using System.Diagnostics;
+using System.Drawing;
 
 /*
     TODO - what is this: "Ads Error: 1 : [AdsClient:TwinCAT.Ads.Internal.INotificationReceiver.OnNotificationError()] Exception: Could not load type 'Invalid_Token.0x020000CF' from assembly 'NewAds, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null'."
@@ -18,6 +19,7 @@ namespace NewAds
         static bool AdsIsRunning;
         static uint ackHandle;
         static uint bufferHandle;
+        static uint notificationHandle;
 
         static async Task Main(string[] args) {
             //ReadInt();
@@ -29,30 +31,38 @@ namespace NewAds
                 AdsClient client = new AdsClient();
                 // Connect to target
                 client.Connect(AmsNetId.Local, 851);
+                
+                // I still want to do this even tho the docs say not to. Need to clarify with Beckhoff
                 client.AdsStateChanged += Client_AdsStateChanged;
+                //AdsIsRunning = (client.ReadState().AdsState == AdsState.Run);  // in lieu of the event above, get the state right now
+
+                // supposed to trigger when the plc program has been restarted
+                client.AdsNotificationsInvalidated += Client_AdsNotificationsInvalidated;
 
                 // Add the Notification event handler
-                client.AdsNotification += Client_AdsNotification;
+                client.AdsNotification += Client_AdsNotification;       // used with the buffer ready event
+
                 while (!Quit) {
                     int size = sizeof(bool);
                     //ResultHandle result = await client.AddDeviceNotificationAsync("vMessages.Msgs_SCP.Ready", size, new NotificationSettings(AdsTransMode.OnChange, 10, 0), null, cancel);
-                    uint notificationHandle = client.AddDeviceNotification("vMessages.Msgs_SCP.Ready", size, new NotificationSettings(AdsTransMode.OnChange, 10, 0), null);
+                    //uint notificationHandle = client.AddDeviceNotification("vMessages.Msgs_SCP.Ready", size, new NotificationSettings(AdsTransMode.OnChange, 10, 0), null);
+                    notificationHandle = client.AddDeviceNotification("vMessages.Msgs_SCP.Ready", size, new NotificationSettings(AdsTransMode.OnChange, 10, 0), null);
 
                     //int i = 0;
                     // wait indefinitely
                     //while (client.ReadState().AdsState == AdsState.Run) {
-                    while (AdsIsRunning) {
+                    while (AdsIsRunning && notificationHandle > 0) {
                         //i++;
                         //Console.WriteLine(i.ToString() + " : state = " + adsState.AdsState.ToString() + " : Connected = " + client.IsConnected.ToString());   // always says "Run"
                         //Console.WriteLine(i.ToString() + " : state = " + adsState.DeviceState.ToString());   // always says "0"
                         Thread.Sleep(1000);
                     }
-                    client.TryDeleteDeviceNotification(notificationHandle);
-                    //client.DeleteDeviceNotification(notificationHandle);
+                    //client.TryDeleteDeviceNotification(notificationHandle);
+                    client.DeleteDeviceNotification(notificationHandle);
                     //client.DeleteDeviceNotification(result.Handle);
                     Thread.Sleep(2000);
                 }
-                //client.AdsNotification -= Client_AdsNotification;
+                client.AdsNotification -= Client_AdsNotification;
             }
             catch (TwinCAT.Ads.AdsErrorException e) {
                 Console.WriteLine("Ads was NOT happy: " + e.Message);
@@ -63,7 +73,53 @@ namespace NewAds
 
         }
 
+        private static void Client_AdsNotificationsInvalidated(object? sender, AdsNotificationsInvalidatedEventArgs e) {
+            Trace.WriteLine("Client_AdsNotificationsInvalidated()");
+            notificationHandle = 0;
+            ackHandle = 0;
+            bufferHandle = 0;
+        }
 
+        private static void Client_AdsStateChanged(object? sender, AdsStateChangedEventArgs e) {
+            Trace.WriteLine("AdsStateChanged(" + e.State.AdsState.ToString() + ")");
+            AdsIsRunning = (e.State.AdsState == AdsState.Run);
+        }
+
+        static void Client_AdsNotification(object sender, AdsNotificationEventArgs e) {
+            Trace.WriteLine("Client_AdsNotification()");
+            Byte readyFlag = e.Data.Span[0];
+
+            if (readyFlag > 0 && sender != null) {
+                AdsClient client = (AdsClient)sender;
+                if (ackHandle == 0)
+                    ackHandle = client.CreateVariableHandle("vMessages.Msgs_SCP.Ack");
+                if (bufferHandle == 0)
+                    bufferHandle = client.CreateVariableHandle("vMessages.Msgs_SCP.Sending");
+
+                try {
+                    // Read the PLC buffer
+                    int byteSize = 4000; // the buffer is actually 4K
+                    PrimitiveTypeMarshaler converter = new PrimitiveTypeMarshaler(StringMarshaler.DefaultEncoding);
+                    byte[] buffer = new byte[byteSize];
+                    int readBytes = client.Read(bufferHandle, buffer.AsMemory());
+                    string value = null;
+                    converter.Unmarshal<string>(buffer.AsSpan(), out value);
+                    Console.WriteLine("Buffer [" + value + "]");
+                    if (value.ToUpper() == "QUIT") Quit = true;
+
+                    client.WriteAny(ackHandle, true);
+                }
+                catch {
+                    Trace.WriteLine("exception when processing sending buffer");
+                    client.DeleteVariableHandle(bufferHandle);
+                    client.DeleteVariableHandle(ackHandle);
+                }
+
+            }
+        }
+
+
+        // testing functions based in whole or part from Beckhoffs examples
         static async void ReadInt() {
             int j = 99;
             using (AdsClient client = new AdsClient()) {
@@ -135,6 +191,7 @@ namespace NewAds
                 }
             }
         }
+
         //static async Task RegisterNotificationsAsync() {
         //    CancellationToken cancel = CancellationToken.None;
 
@@ -163,48 +220,6 @@ namespace NewAds
         //    }
         //}
 
-        private static void Client_AdsStateChanged(object? sender, AdsStateChangedEventArgs e) {
-            Trace.WriteLine("AdsStateChanged(" + e.State.AdsState.ToString() + ")");
-            AdsIsRunning = (e.State.AdsState == AdsState.Run);
-        }
 
-        static void Client_AdsNotification(object sender, AdsNotificationEventArgs e) {
-            Byte readyFlag = e.Data.Span[0];
-
-            if (readyFlag > 0 && sender != null) {
-                AdsClient client = (AdsClient)sender;
-                if (ackHandle == 0)
-                    ackHandle = client.CreateVariableHandle("vMessages.Msgs_SCP.Ack");
-                if (bufferHandle == 0)
-                    bufferHandle = client.CreateVariableHandle("vMessages.Msgs_SCP.Sending");
-
-                try {
-                    // Read the PLC buffer
-                    int byteSize = 4000; // the buffer is actually 4K
-                    PrimitiveTypeMarshaler converter = new PrimitiveTypeMarshaler(StringMarshaler.DefaultEncoding);
-                    byte[] buffer = new byte[byteSize];
-                    int readBytes = client.Read(bufferHandle, buffer.AsMemory());
-                    string value = null;
-                    converter.Unmarshal<string>(buffer.AsSpan(), out value);
-                    Console.WriteLine("Buffer [" + value + "]");
-                    if (value.ToUpper() == "QUIT") Quit = true;
-
-                    client.WriteAny(ackHandle, true);
-                }
-                catch {
-                    Trace.WriteLine("exception when processing sending buffer");
-                    client.DeleteVariableHandle(bufferHandle);
-                    client.DeleteVariableHandle(ackHandle);
-                }
-
-            }
-
-            // If Synchronization is needed (e.g. in Windows.Forms or WPF applications)
-            // we could synchronize via SynchronizationContext into the UI Thread
-            /*
-             SynchronizationContext syncContext = SynchronizationContext.Current;
-              _context.Post(status => someLabel.Text = nCounter.ToString(), null); // Non-blocking post 
-            */
-        }
     }
 }

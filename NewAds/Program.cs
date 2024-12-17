@@ -20,6 +20,8 @@ namespace NewAds
         static uint notificationHandle;
 
         static async Task Main(string[] args) {
+
+            //CancellationToken cancel = CancellationToken.None;
             try {
                 AdsClient client = new AdsClient();
                 // Connect to target
@@ -31,6 +33,7 @@ namespace NewAds
 
                 // supposed to trigger when the plc program has been restarted
                 client.AdsNotificationsInvalidated += Client_AdsNotificationsInvalidated;
+                client.AdsSymbolVersionChanged += Client_AdsSymbolVersionChanged;
 
                 // Add the Notification event handler
                 client.AdsNotification += Client_AdsNotification;       // used with the buffer ready event
@@ -38,6 +41,7 @@ namespace NewAds
                 while (!Quit) {
                     int size = sizeof(bool);
                     notificationHandle = client.AddDeviceNotification("vMessages.Msgs_SCP.Ready", size, new NotificationSettings(AdsTransMode.OnChange, 10, 0), null);
+                    Trace.WriteLine("Add DeviceNotification for the Msgs_SCP.Ready tag returned handle " + notificationHandle.ToString());
 
                     while (AdsIsRunning && notificationHandle > 0) {
                         Thread.Sleep(1000);
@@ -58,6 +62,10 @@ namespace NewAds
                 Console.WriteLine("Not compatible with TwinCAT ADS.");
             }
 
+        }
+
+        private static void Client_AdsSymbolVersionChanged(object? sender, AdsSymbolVersionChangedEventArgs e) {
+            Trace.WriteLine("AdsSymbolVersionChanged");
         }
 
         private static void Client_AdsNotificationsInvalidated(object? sender, AdsNotificationsInvalidatedEventArgs e) {

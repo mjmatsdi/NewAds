@@ -186,6 +186,45 @@ the console had this to say:
 I need to try to keep a running log of the devicenotification handle
 notice it was 0 when the inner loop exited. what happened in the meantime?
 I should log what it is when I add the notification
+-doh didn't get the debugger state. I don't know on what it triggered the exception
+
+try again....
+this time I did two spearete edits to the "process buffer" pou and I ended each with a "login with download"
+the first time it was fine. the second if faulted:
+Console:
+    Symbol version is invalid
+the debugger never stopped on any line
+here's the debugger output tho:
+    AdsStateChanged(Run)            -- me hitting PLAY
+    Client_AdsNotification()
+        e.handle 7
+        e.Data.Span[0] = 0
+    Client_AdsNotification()
+        e.handle 7
+        e.Data.Span[0] = 1
+    Client_AdsNotification()
+        e.handle 7
+        e.Data.Span[0] = 0
+    Client_AdsNotification()
+        e.handle 7
+        e.Data.Span[0] = 1
+    Client_AdsNotification()
+        e.handle 7
+        e.Data.Span[0] = 0
+    AdsStateChanged(Stop)           -- the 2nd on-line edit
+    Client_AdsNotificationsInvalidated()
+    Inner while loop exited.
+        AdsIsRunning = False
+        notificationHandle = 0
+    Exception thrown: 'TwinCAT.Ads.AdsErrorException' in TwinCAT.Ads.dll
+    The program '[4780] NewAds.exe' has exited with code 0 (0x0).
+My intial question is what was the notifHandle before the loop ended.
+IOW if, in the inner loop it says, hey get me a handle, but then ads says it's stopped
+(not that the handle is bad) and the loop drops out then (async) the Invalidated gets called, setting the
+... nah, can't see it. I think I'm onto something, just can't get me head wrapped around it.
+
+
+
 
 
 

@@ -17,8 +17,6 @@ namespace NewAds
     {
         static bool Quit = false;
         static bool AdsIsRunning;
-        static uint ackHandle;
-        static uint bufferHandle;
         static uint notificationHandle;
 
         static async Task Main(string[] args) {
@@ -81,8 +79,6 @@ namespace NewAds
         private static void Client_AdsNotificationsInvalidated(object? sender, AdsNotificationsInvalidatedEventArgs e) {
             Trace.WriteLine("Client_AdsNotificationsInvalidated()");
             notificationHandle = 0;
-            ackHandle = 0;
-            bufferHandle = 0;
         }
 
         private static void Client_AdsStateChanged(object? sender, AdsStateChangedEventArgs e) {
@@ -94,18 +90,15 @@ namespace NewAds
             Trace.WriteLine("Client_AdsNotification()");
             Trace.WriteLine("    e.handle " + e.Handle.ToString());
             Trace.WriteLine("    e.Data.Span[0] = " + e.Data.Span[0].ToString());
-            Trace.WriteLine("    e.UserData = " + e.UserData.ToString());
-            Trace.WriteLine("    ackHandle = " + ackHandle.ToString());
-            Trace.WriteLine("    bufferHandle = " + bufferHandle.ToString());
+            if (e.UserData != null)
+                Trace.WriteLine("    e.UserData = " + e.UserData.ToString());
 
             Byte readyFlag = e.Data.Span[0];
 
             if (readyFlag > 0 && sender != null) {
                 AdsClient client = (AdsClient)sender;
-                if (ackHandle == 0)
-                    ackHandle = client.CreateVariableHandle("vMessages.Msgs_SCP.Ack");
-                if (bufferHandle == 0)
-                    bufferHandle = client.CreateVariableHandle("vMessages.Msgs_SCP.Sending");
+                uint ackHandle = client.CreateVariableHandle("vMessages.Msgs_SCP.Ack");
+                uint bufferHandle = client.CreateVariableHandle("vMessages.Msgs_SCP.Sending");
 
                 try {
                     // Read the PLC buffer
@@ -122,6 +115,8 @@ namespace NewAds
                 }
                 catch {
                     Trace.WriteLine("exception when processing sending buffer");
+                }
+                finally {
                     client.DeleteVariableHandle(bufferHandle);
                     client.DeleteVariableHandle(ackHandle);
                 }

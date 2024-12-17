@@ -107,5 +107,86 @@ Here's the debugger:
 Not sure why I got 4 AdsNotification events with an exception in the middle and then another after.
 I'm starting to wonder if the AdsNotification covers more than just a tag change.
 
+
 Repeating above. I added some logging to the AdsNotification function to list out some the eventargs
+Made a change - logged in with download
+    AdsStateChanged(Stop)
+    Client_AdsNotificationsInvalidated()
+    Inner while loop exited.
+        AdsIsRunning = False
+        notificationHandle = 0
+    Inner while loop exited.
+        AdsIsRunning = False
+        notificationHandle = 3
+    Client_AdsNotification()        
+-- why am I getting these? bc when the loop comes back around it re-registers the buffer
+-- and you get an initial value
+        e.handle 3
+        e.Data.Span[0] = 0
+        ackHandle = 0
+        bufferHandle = 0
+    Inner while loop exited.
+        AdsIsRunning = False
+        notificationHandle = 4
+    Client_AdsNotification()
+        e.handle 4
+        e.Data.Span[0] = 0
+        ackHandle = 0
+        bufferHandle = 0
+    AdsStateChanged(Run)            -- I hit play
+    Client_AdsNotification()
+        e.handle 5
+        e.Data.Span[0] = 0
+        ackHandle = 0
+        bufferHandle = 0
+plc program is still running - no faults in the console app yet
+ask plc to make more msgs...
+faults immediately:
+    Client_AdsNotification()
+        e.handle 5
+        e.Data.Span[0] = 1
+        ackHandle = 0
+        bufferHandle = 0
+    Exception thrown: 'TwinCAT.Ads.AdsErrorException' in TwinCAT.Ads.dll        -- WHERE IS THIS COMING FROM????
+    exception when processing sending buffer
+    Client_AdsNotification()
+        e.handle 5
+        e.Data.Span[0] = 0
+        ackHandle = 461373443
+        bufferHandle = 461373444
+    Client_AdsNotification()
+        e.handle 5
+        e.Data.Span[0] = 1
+        ackHandle = 461373443
+        bufferHandle = 461373444
+    Exception thrown: 'TwinCAT.Ads.AdsErrorException' in TwinCAT.Ads.dll
+    exception when processing sending buffer
+    Exception thrown: 'TwinCAT.Ads.AdsErrorException' in TwinCAT.Ads.dll
+    An exception of type 'TwinCAT.Ads.AdsErrorException' occurred in TwinCAT.Ads.dll but was not handled in user code
+    Symbol version is invalid. (AdsErrorCode: 1809, 0x711)
+when the dust settled and the debugger popped up. it was stopped on the client.DeleteVariableHandle(bufferHandle)
+I'm thinkg that maybe not do global handles and keep it local. what kind of overhead could that cause?
+
+I did that, just use local vars for the ack and buffer handle and it worked perfectly.
+
+
+repeat but this time my edit was to change the code in the main prgram - exception
+    AdsStateChanged(Stop)
+    Client_AdsNotificationsInvalidated()
+    Inner while loop exited.
+        AdsIsRunning = False
+        notificationHandle = 0
+    The thread '.NET TP Worker' (9352) has exited with code 0 (0x0).
+    The thread '.NET TP Worker' (4720) has exited with code 0 (0x0).
+    AdsStateChanged(Run)        -- this was me hitting play
+    Exception thrown: 'TwinCAT.Ads.AdsErrorException' in TwinCAT.Ads.dll
+    The program '[10192] NewAds.exe' has exited with code 0 (0x0).
+the console had this to say:
+    Symbol version is invalid
+I need to try to keep a running log of the devicenotification handle
+notice it was 0 when the inner loop exited. what happened in the meantime?
+I should log what it is when I add the notification
+
+
+
 

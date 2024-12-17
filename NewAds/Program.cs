@@ -92,8 +92,11 @@ namespace NewAds
 
         static void Client_AdsNotification(object sender, AdsNotificationEventArgs e) {
             Trace.WriteLine("Client_AdsNotification()");
-            Trace.WriteLine("    handle " + e.Handle.ToString());
-            Trace.WriteLine("    Data.Span[0] = " + e.Data.Span[0].ToString());
+            Trace.WriteLine("    e.handle " + e.Handle.ToString());
+            Trace.WriteLine("    e.Data.Span[0] = " + e.Data.Span[0].ToString());
+            Trace.WriteLine("    e.UserData = " + e.UserData.ToString());
+            Trace.WriteLine("    ackHandle = " + ackHandle.ToString());
+            Trace.WriteLine("    bufferHandle = " + bufferHandle.ToString());
 
             Byte readyFlag = e.Data.Span[0];
 

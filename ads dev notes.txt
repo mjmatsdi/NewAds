@@ -95,7 +95,7 @@ Here's the debugger:
     AdsStateChanged(Run)        -- this is when I hit play
     Client_AdsNotification()
     Client_AdsNotification()
-    Exception thrown: 'TwinCAT.Ads.AdsErrorException' in TwinCAT.Ads.dll
+    Exception thrown: 'TwinCAT.Ads.AdsErrorException' in TwinCAT.Ads.dll        -- where did this come from????
     exception when processing sending buffer    -- this is in the handle tag change - or is it.
     Client_AdsNotification()
     Client_AdsNotification()
@@ -106,4 +106,6 @@ Here's the debugger:
     Symbol version is invalid. (AdsErrorCode: 1809, 0x711)
 Not sure why I got 4 AdsNotification events with an exception in the middle and then another after.
 I'm starting to wonder if the AdsNotification covers more than just a tag change.
+
+Repeating above. I added some logging to the AdsNotification function to list out some the eventargs
 

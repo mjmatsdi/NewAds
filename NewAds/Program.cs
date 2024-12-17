@@ -31,6 +31,7 @@ namespace NewAds
                 AdsClient client = new AdsClient();
                 // Connect to target
                 client.Connect(AmsNetId.Local, 851);
+
                 
                 // I still want to do this even tho the docs say not to. Need to clarify with Beckhoff
                 client.AdsStateChanged += Client_AdsStateChanged;
@@ -57,8 +58,12 @@ namespace NewAds
                         //Console.WriteLine(i.ToString() + " : state = " + adsState.DeviceState.ToString());   // always says "0"
                         Thread.Sleep(1000);
                     }
+                    Trace.WriteLine("Inner while loop exited.");
+                    Trace.WriteLine("    AdsIsRunning = " + AdsIsRunning.ToString());
+                    Trace.WriteLine("    notificationHandle = " + notificationHandle.ToString());
+
                     //client.TryDeleteDeviceNotification(notificationHandle);
-                    client.DeleteDeviceNotification(notificationHandle);
+                    if (notificationHandle > 0) client.DeleteDeviceNotification(notificationHandle);
                     //client.DeleteDeviceNotification(result.Handle);
                     Thread.Sleep(2000);
                 }
@@ -87,6 +92,9 @@ namespace NewAds
 
         static void Client_AdsNotification(object sender, AdsNotificationEventArgs e) {
             Trace.WriteLine("Client_AdsNotification()");
+            Trace.WriteLine("    handle " + e.Handle.ToString());
+            Trace.WriteLine("    Data.Span[0] = " + e.Data.Span[0].ToString());
+
             Byte readyFlag = e.Data.Span[0];
 
             if (readyFlag > 0 && sender != null) {

@@ -15,7 +15,7 @@ The exception was thrown when I hit the "client.AddDeviceNotification("vMessages
 code.
 
 
-Try again with some code re-shuffling and a new invl;aid notificatyion handler
+Try again with some code re-shuffling and a new invalid notification handler
 When first starting the dev vm
 -load eHub plc project - do NOT activate it or put it in RUN mode.
 -run the NewAds console app
@@ -26,4 +26,84 @@ reading the ads state occurs immediately after the Ads.Connect call
 
 repeating the above but activating the project and loading it and running it, I don't get that
 "Don't register for AdsClient.AdsStateChanged events!" in the output window.
+
+Running PLC app. Running Ads app. 
+Ads has seen messages.
+Open plc program, edit it, login with on-line change
+no indication that the plc ads state has changed.
+ask plc to create more msgs
+msgs recvd by the ads app
+I was expecting some sort of exception. guess not.
+
+repeating the above but this time with "Login with download"
+got this in the debugger:
+    AdsStateChanged(Stop)
+    Client_AdsNotificationsInvalidated()
+    Exception thrown: 'TwinCAT.Ads.AdsErrorException' in TwinCAT.Ads.dll
+    The program '[10068] NewAds.exe' has exited with code 0 (0x0).
+got this on the apps console:
+    Ads was NOT happy: Key could not be found in hashtable
+
+
+repeating the above
+    I think it faulted when I try to DeleteDeviceNotification(notificationHandle)
+    I think bc it's 0. Added Trace statements to verify
+Login with download and all this happened:
+    AdsStateChanged(Stop)
+    Client_AdsNotificationsInvalidated()
+    Inner while loop exited.
+        AdsIsRunning = False
+        notificationHandle = 0
+    Inner while loop exited.
+        AdsIsRunning = False
+        notificationHandle = 3
+    Inner while loop exited.
+        AdsIsRunning = False
+        notificationHandle = 4
+    Inner while loop exited.
+        AdsIsRunning = False
+        notificationHandle = 5
+    Inner while loop exited.
+        AdsIsRunning = False
+        notificationHandle = 6
+    Inner while loop exited.
+        AdsIsRunning = False
+        notificationHandle = 7
+    Inner while loop exited.
+        AdsIsRunning = False
+        notificationHandle = 8
+    Inner while loop exited.
+        AdsIsRunning = False
+        notificationHandle = 9
+    Client_AdsNotification()
+    Inner while loop exited.
+        AdsIsRunning = False
+        notificationHandle = 10
+    Inner while loop exited.
+        AdsIsRunning = False
+        notificationHandle = 11
+    Inner while loop exited.
+        AdsIsRunning = False
+        notificationHandle = 12
+At this point I exited the program because I wanted to log all this down
+
+Reran the above. But this time:
+After Login with download I hit play on the plc program to let it run again.
+then I asked it to start making msgs again.
+Exception!
+Here's the debugger:
+    AdsStateChanged(Run)        -- this is when I hit play
+    Client_AdsNotification()
+    Client_AdsNotification()
+    Exception thrown: 'TwinCAT.Ads.AdsErrorException' in TwinCAT.Ads.dll
+    exception when processing sending buffer    -- this is in the handle tag change - or is it.
+    Client_AdsNotification()
+    Client_AdsNotification()
+    Exception thrown: 'TwinCAT.Ads.AdsErrorException' in TwinCAT.Ads.dll
+    exception when processing sending buffer
+    Exception thrown: 'TwinCAT.Ads.AdsErrorException' in TwinCAT.Ads.dll
+    An exception of type 'TwinCAT.Ads.AdsErrorException' occurred in TwinCAT.Ads.dll but was not handled in user code
+    Symbol version is invalid. (AdsErrorCode: 1809, 0x711)
+Not sure why I got 4 AdsNotification events with an exception in the middle and then another after.
+I'm starting to wonder if the AdsNotification covers more than just a tag change.
 

@@ -20,11 +20,6 @@ namespace NewAds
         static uint notificationHandle;
 
         static async Task Main(string[] args) {
-            //ReadInt();
-            //ReadString();
-            //Thread.Sleep(5000);
-
-            //CancellationToken cancel = CancellationToken.None;
             try {
                 AdsClient client = new AdsClient();
                 // Connect to target
@@ -33,7 +28,6 @@ namespace NewAds
                 
                 // I still want to do this even tho the docs say not to. Need to clarify with Beckhoff
                 client.AdsStateChanged += Client_AdsStateChanged;
-                //AdsIsRunning = (client.ReadState().AdsState == AdsState.Run);  // in lieu of the event above, get the state right now
 
                 // supposed to trigger when the plc program has been restarted
                 client.AdsNotificationsInvalidated += Client_AdsNotificationsInvalidated;
@@ -43,26 +37,16 @@ namespace NewAds
 
                 while (!Quit) {
                     int size = sizeof(bool);
-                    //ResultHandle result = await client.AddDeviceNotificationAsync("vMessages.Msgs_SCP.Ready", size, new NotificationSettings(AdsTransMode.OnChange, 10, 0), null, cancel);
-                    //uint notificationHandle = client.AddDeviceNotification("vMessages.Msgs_SCP.Ready", size, new NotificationSettings(AdsTransMode.OnChange, 10, 0), null);
                     notificationHandle = client.AddDeviceNotification("vMessages.Msgs_SCP.Ready", size, new NotificationSettings(AdsTransMode.OnChange, 10, 0), null);
 
-                    //int i = 0;
-                    // wait indefinitely
-                    //while (client.ReadState().AdsState == AdsState.Run) {
                     while (AdsIsRunning && notificationHandle > 0) {
-                        //i++;
-                        //Console.WriteLine(i.ToString() + " : state = " + adsState.AdsState.ToString() + " : Connected = " + client.IsConnected.ToString());   // always says "Run"
-                        //Console.WriteLine(i.ToString() + " : state = " + adsState.DeviceState.ToString());   // always says "0"
                         Thread.Sleep(1000);
                     }
                     Trace.WriteLine("Inner while loop exited.");
                     Trace.WriteLine("    AdsIsRunning = " + AdsIsRunning.ToString());
                     Trace.WriteLine("    notificationHandle = " + notificationHandle.ToString());
 
-                    //client.TryDeleteDeviceNotification(notificationHandle);
                     if (notificationHandle > 0) client.DeleteDeviceNotification(notificationHandle);
-                    //client.DeleteDeviceNotification(result.Handle);
                     Thread.Sleep(2000);
                 }
                 client.AdsNotification -= Client_AdsNotification;

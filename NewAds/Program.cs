@@ -20,8 +20,8 @@ namespace NewAds
         static uint notificationHandle;
 
         static async Task Main(string[] args) {
-            try {
-                while (!Quit) {
+            while (!Quit) {
+                try {
                     AdsClient client = new AdsClient();
                     // Connect to target
                     Trace.WriteLine("client.Connect()");
@@ -35,9 +35,9 @@ namespace NewAds
                     }
 
                 }
-            }
-            catch (Exception e) {
-                Console.WriteLine(e.Message);
+                catch (Exception e) {
+                    Console.WriteLine(e.Message);
+                }
             }
         }
 

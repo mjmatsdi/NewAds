@@ -25,23 +25,31 @@ namespace NewAds
             try {
                 AdsClient client = new AdsClient();
                 // Connect to target
+                Trace.WriteLine("client.Connect()");
                 client.Connect(AmsNetId.Local, 851);
 
-                
+
                 // I still want to do this even tho the docs say not to. Need to clarify with Beckhoff
+                Trace.WriteLine("registering for the AdsStateChanged event");
                 client.AdsStateChanged += Client_AdsStateChanged;
 
                 // supposed to trigger when the plc program has been restarted
+                Trace.WriteLine("registering for the AdsNotificationsInvalidated event");
                 client.AdsNotificationsInvalidated += Client_AdsNotificationsInvalidated;
+                Trace.WriteLine("registering for the AdsSymbolVersionChanged event");
                 client.AdsSymbolVersionChanged += Client_AdsSymbolVersionChanged;
 
                 // Add the Notification event handler
+                Trace.WriteLine("registering for the AdsNotification event");
                 client.AdsNotification += Client_AdsNotification;       // used with the buffer ready event
+
+                AdsIsRunning = true;    // testing a theory
 
                 while (!Quit) {
                     int size = sizeof(bool);
+                    Trace.WriteLine("adding ready tag to the notification");
                     notificationHandle = client.AddDeviceNotification("vMessages.Msgs_SCP.Ready", size, new NotificationSettings(AdsTransMode.OnChange, 10, 0), null);
-                    Trace.WriteLine("Add DeviceNotification for the Msgs_SCP.Ready tag returned handle " + notificationHandle.ToString());
+                    Trace.WriteLine("    returned handle " + notificationHandle.ToString());
 
                     while (AdsIsRunning && notificationHandle > 0) {
                         Thread.Sleep(1000);
@@ -50,9 +58,13 @@ namespace NewAds
                     Trace.WriteLine("    AdsIsRunning = " + AdsIsRunning.ToString());
                     Trace.WriteLine("    notificationHandle = " + notificationHandle.ToString());
 
-                    if (notificationHandle > 0) client.DeleteDeviceNotification(notificationHandle);
+                    if (notificationHandle > 0) {
+                        Trace.WriteLine("deregistering the notificationHandle");
+                        client.DeleteDeviceNotification(notificationHandle);
+                    }
                     Thread.Sleep(2000);
                 }
+                Trace.WriteLine("deregistering the AdsNotification");
                 client.AdsNotification -= Client_AdsNotification;
             }
             catch (TwinCAT.Ads.AdsErrorException e) {
@@ -66,16 +78,25 @@ namespace NewAds
 
         private static void Client_AdsSymbolVersionChanged(object? sender, AdsSymbolVersionChangedEventArgs e) {
             Trace.WriteLine("AdsSymbolVersionChanged");
+            if (sender != null) {
+                Trace.WriteLine("    getting the AdsClient object");
+                AdsClient client = (AdsClient)sender;
+                Trace.WriteLine("    calling CleanupSymbolTable");
+                client.CleanupSymbolTable();
+                Trace.WriteLine("    setting notificationHandle = 0");
+                notificationHandle = 0;
+            }
         }
 
         private static void Client_AdsNotificationsInvalidated(object? sender, AdsNotificationsInvalidatedEventArgs e) {
             Trace.WriteLine("Client_AdsNotificationsInvalidated()");
+            Trace.WriteLine("    setting notificationHandle to 0");
             notificationHandle = 0;
         }
 
         private static void Client_AdsStateChanged(object? sender, AdsStateChangedEventArgs e) {
             Trace.WriteLine("AdsStateChanged(" + e.State.AdsState.ToString() + ")");
-            AdsIsRunning = (e.State.AdsState == AdsState.Run);
+            //AdsIsRunning = (e.State.AdsState == AdsState.Run);
         }
 
         static void Client_AdsNotification(object sender, AdsNotificationEventArgs e) {
@@ -89,7 +110,9 @@ namespace NewAds
 
             if (readyFlag > 0 && sender != null) {
                 AdsClient client = (AdsClient)sender;
+                Trace.WriteLine("    creating handle for the Ack tag");
                 uint ackHandle = client.CreateVariableHandle("vMessages.Msgs_SCP.Ack");
+                Trace.WriteLine("    creating handle for the buffer tag");
                 uint bufferHandle = client.CreateVariableHandle("vMessages.Msgs_SCP.Sending");
 
                 try {
@@ -97,19 +120,23 @@ namespace NewAds
                     int byteSize = 4000; // the buffer is actually 4K
                     PrimitiveTypeMarshaler converter = new PrimitiveTypeMarshaler(StringMarshaler.DefaultEncoding);
                     byte[] buffer = new byte[byteSize];
+                    Trace.WriteLine("    reading buffer tag");
                     int readBytes = client.Read(bufferHandle, buffer.AsMemory());
                     string value = null;
                     converter.Unmarshal<string>(buffer.AsSpan(), out value);
                     Console.WriteLine("Buffer [" + value + "]");
                     if (value.ToUpper() == "QUIT") Quit = true;
 
+                    Trace.WriteLine("    setting the Ack tag = TRUE");
                     client.WriteAny(ackHandle, true);
                 }
                 catch {
-                    Trace.WriteLine("exception when processing sending buffer");
+                    Trace.WriteLine("    exception when processing sending buffer");
                 }
                 finally {
+                    Trace.WriteLine("    deleting handle for the buffer tag");
                     client.DeleteVariableHandle(bufferHandle);
+                    Trace.WriteLine("    deleting handle for the ack tag");
                     client.DeleteVariableHandle(ackHandle);
                 }
 

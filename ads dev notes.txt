@@ -14,7 +14,8 @@ the first part (Ads Error 1...) did not throw an exception when I stepped thru t
 The exception was thrown when I hit the "client.AddDeviceNotification("vMessages.Msgs_SCP.Ready",..." 
 code.
 
-
+Dec 17 - Tue
+===========================================
 Try again with some code re-shuffling and a new invalid notification handler
 When first starting the dev vm
 -load eHub plc project - do NOT activate it or put it in RUN mode.
@@ -223,9 +224,205 @@ IOW if, in the inner loop it says, hey get me a handle, but then ads says it's s
 (not that the handle is bad) and the loop drops out then (async) the Invalidated gets called, setting the
 ... nah, can't see it. I think I'm onto something, just can't get me head wrapped around it.
 
+Dec 18 - Wed
+====================================
+first start up. I didn't activate the TC project, but just ran the console app. 
+It faulted with:
+    Target port could not be found.
+In the debugger, if I step thru the code from the initial AdsClient instantiation, I
+get the following in the debugger, but the app doesn't fault:
+    Ads Error: 1 : [AdsClient:TwinCAT.Ads.Internal.INotificationReceiver.OnNotificationError()] Exception: 
+        Couldn't register for AdsState change Notifications on the connected ADS Server. Don't register 
+        for AdsClient.AdsStateChanged events! (Target port could not be found. (AdsErrorCode: 6, 0x6))
+    Ads Error: 1 : [AdsClient:TwinCAT.Ads.Internal.INotificationReceiver.OnNotificationError()] Exception: 
+        Couldn't register for SymbolVersion change Notifications on the connected ADS Server. Don't register 
+        for AdsClient.SymbolVersionChanged events! (Target port could not be found. (AdsErrorCode: 6, 0x6))
+The code is the following:
+    client.AdsStateChanged += Client_AdsStateChanged;
+
+    // supposed to trigger when the plc program has been restarted
+    client.AdsNotificationsInvalidated += Client_AdsNotificationsInvalidated;
+    client.AdsSymbolVersionChanged += Client_AdsSymbolVersionChanged;
+
+    // Add the Notification event handler
+    client.AdsNotification += Client_AdsNotification;       // used with the buffer ready event
+Notice that there was no Ads Error on the AdsNotificationsInvalidated event assignment. Odd.
+And no ads error on the simple AdsNotification.
+Continuing to step thru, it finally fatally faults on:
+    notificationHandle = client.AddDeviceNotification("vMessages.Msgs_SCP.Ready"...
+Debugger throws this:
+    TwinCAT.Ads.AdsErrorException: 'Target port could not be found. (AdsErrorCode: 6, 0x6)'
+why this one faults and not the other 2 I don't know.
 
 
+Carrying on...
+Activating the TC project. Set TC to run mode. Did not do a download.
+Ran the console app. It hard faulted in the same spot as above but I didn't get the other
+two "Ads Error: 1:..." messages in the debugger.
+
+Carrying on... 
+do a TC download and play
+create a few msgs
+did a TC code edit and login with download
+faulted. Here's the debugger:
+    AdsStateChanged(Stop)
+    Inner while loop exited.
+        AdsIsRunning = False
+    AdsSymbolVersionChanged
+        notificationHandle = 3
+    Exception thrown: 'TwinCAT.Ads.AdsErrorException' in TwinCAT.Ads.dll
+and the console:
+    Key could not be found in a hashtable.
+what is different yesterday -vs- today? yesterday it worked at least once. maybe luck of the draw?
 
 
+try again. this time I added trace statements before every single line of code.
+debugger log:
+    client.Connect()
+    registering for the AdsStateChanged event
+    registering for the AdsNotificationsInvalidated event
+    registering for the AdsSymbolVersionChanged event
+    AdsStateChanged(Run)
+    registering for the AdsNotification event
+    adding ready tag to the notification
+       returned handle 3
+    Client_AdsNotification()
+        e.handle 3
+        e.Data.Span[0] = 0
+    Client_AdsNotification()            // me creating a msg
+        e.handle 3
+        e.Data.Span[0] = 1
+    creating handle for the Ack tag
+    creating handle for the buffer tag
+    reading buffer tag
+    setting the Ack tag = TRUE
+    deleting handle for the buffer tag
+    deleting handle for the ack tag
+    Client_AdsNotification()
+        e.handle 3
+        e.Data.Span[0] = 0
+        
+    // TC code changed by me and then login with download
+    AdsStateChanged(Stop)
+    AdsSymbolVersionChanged
+    Inner while loop exited.
+        AdsIsRunning = False
+        notificationHandle = 3
+    registering for the 
+    Exception thrown: 'TwinCAT.Ads.AdsErrorException' in TwinCAT.Ads.dll
 
+note that I never got the Client_AdsNotificationsInvalidated event which would have reset the notificationHandle to 0
+
+
+try again: I added code to AdsSymbolVersionChanged to call client.CleanupSymbolTable and reset notificationHandle to 0
+debugger:
+    client.Connect()
+    registering for the AdsStateChanged event
+    registering for the AdsNotificationsInvalidated event
+    registering for the AdsSymbolVersionChanged event
+    AdsStateChanged(Run)
+    registering for the AdsNotification event
+    adding ready tag to the notification
+        returned handle 3
+    Client_AdsNotification()
+        e.handle 3
+        e.Data.Span[0] = 0
+    Client_AdsNotification()
+        e.handle 3
+        e.Data.Span[0] = 1
+    creating handle for the Ack tag
+    creating handle for the buffer tag
+    reading buffer tag
+    setting the Ack tag = TRUE
+    deleting handle for the buffer tag
+    deleting handle for the ack tag
+    Client_AdsNotification()
+        e.handle 3
+        e.Data.Span[0] = 0
+    AdsStateChanged(Stop)           // sets AdsIsRunning = FALSE
+M   Inner while loop exited.
+M       AdsIsRunning = False
+T   AdsSymbolVersionChanged
+M       notificationHandle = 3
+M   deregistering the notificationHandle    // notificationHandle is > 0
+T       getting the AdsClient object
+?   Exception thrown: 'TwinCAT.Ads.AdsErrorException' in TwinCAT.Ads.dll
+T       calling CleanupSymbolTable
+T       setting notificationHandle = 0
+    The program '[10136] NewAds.exe' has exited with code 0 (0x0).
+For the above, I prefixed lines with an M for main thread and T for side thread.
+
+It looks like a race condition. AdsSymbolVersionChanged doesn't finish before the main thread tries
+to delete the Ready tag notification.
+
+try again, this time I'm not letting the AdsStateChange do anything other than log (keeps AdsIsRunning = true)
+debugger:
+    client.Connect()
+    registering for the AdsStateChanged event
+    registering for the AdsNotificationsInvalidated event
+    registering for the AdsSymbolVersionChanged event
+    AdsStateChanged(Run)
+    registering for the AdsNotification event
+    adding ready tag to the notification
+        returned handle 3
+    Client_AdsNotification()        
+        e.handle 3
+        e.Data.Span[0] = 0
+    Client_AdsNotification()                    // me creating a msg
+        e.handle 3
+        e.Data.Span[0] = 1
+        creating handle for the Ack tag
+        creating handle for the buffer tag
+        reading buffer tag
+        setting the Ack tag = TRUE
+        deleting handle for the buffer tag
+        deleting handle for the ack tag
+    Client_AdsNotification()
+        e.handle 3
+        e.Data.Span[0] = 0
+                                                // me making TC code change then login with download
+    AdsStateChanged(Stop)                       // now coded to ONLY log, nothing else
+    AdsSymbolVersionChanged
+        getting the AdsClient object
+        calling CleanupSymbolTable
+        setting notificationHandle = 0
+    Inner while loop exited.
+        AdsIsRunning = True
+        notificationHandle = 0
+    AdsStateChanged(Run)                        // after login, I hit play
+    adding ready tag to the notification
+        returned handle 4
+    Client_AdsNotification()                    // you get this when you first add the notification
+        e.handle 4
+        e.Data.Span[0] = 0
+    Client_AdsNotification()                    // actual change because I created a new msg
+        e.handle 4
+        e.Data.Span[0] = 1
+        creating handle for the Ack tag
+        creating handle for the buffer tag
+        reading buffer tag
+        setting the Ack tag = TRUE
+        deleting handle for the buffer tag
+        deleting handle for the ack tag
+    Client_AdsNotification()
+        e.handle 4
+        e.Data.Span[0] = 0
+                                                // and it's still running
+                                                // created a couple new msgs
+                                                // make another TC code change
+    AdsStateChanged(Stop)
+    AdsSymbolVersionChanged
+        getting the AdsClient object
+        calling CleanupSymbolTable
+        setting notificationHandle = 0
+    Inner while loop exited.
+        AdsIsRunning = True
+        notificationHandle = 0
+    AdsStateChanged(Run)
+    adding ready tag to the notification
+    Exception thrown: 'TwinCAT.Ads.AdsErrorException' in TwinCAT.Ads.dll
+    The program '[400] NewAds.exe' has exited with code 0 (0x0).
+Console shows:
+    "Symbol version is invalid"
+    
 

@@ -20,84 +20,135 @@ namespace NewAds
         static uint notificationHandle;
 
         static async Task Main(string[] args) {
-
-            //CancellationToken cancel = CancellationToken.None;
             try {
-                AdsClient client = new AdsClient();
-                // Connect to target
-                Trace.WriteLine("client.Connect()");
-                client.Connect(AmsNetId.Local, 851);
-
-
-                // I still want to do this even tho the docs say not to. Need to clarify with Beckhoff
-                Trace.WriteLine("registering for the AdsStateChanged event");
-                client.AdsStateChanged += Client_AdsStateChanged;
-
-                // supposed to trigger when the plc program has been restarted
-                Trace.WriteLine("registering for the AdsNotificationsInvalidated event");
-                client.AdsNotificationsInvalidated += Client_AdsNotificationsInvalidated;
-                Trace.WriteLine("registering for the AdsSymbolVersionChanged event");
-                client.AdsSymbolVersionChanged += Client_AdsSymbolVersionChanged;
-
-                // Add the Notification event handler
-                Trace.WriteLine("registering for the AdsNotification event");
-                client.AdsNotification += Client_AdsNotification;       // used with the buffer ready event
-
-                AdsIsRunning = true;    // testing a theory
-
                 while (!Quit) {
-                    int size = sizeof(bool);
-                    Trace.WriteLine("adding ready tag to the notification");
-                    notificationHandle = client.AddDeviceNotification("vMessages.Msgs_SCP.Ready", size, new NotificationSettings(AdsTransMode.OnChange, 10, 0), null);
-                    Trace.WriteLine("    returned handle " + notificationHandle.ToString());
+                    AdsClient client = new AdsClient();
+                    // Connect to target
+                    Trace.WriteLine("client.Connect()");
+                    client.Connect(AmsNetId.Local, 851);
 
-                    while (AdsIsRunning && notificationHandle > 0) {
+                    Trace.WriteLine("registering for the AdsStateChanged event");
+                    client.AdsStateChanged += Client_AdsStateChanged;
+
+                    while (true) {
                         Thread.Sleep(1000);
                     }
-                    Trace.WriteLine("Inner while loop exited.");
-                    Trace.WriteLine("    AdsIsRunning = " + AdsIsRunning.ToString());
-                    Trace.WriteLine("    notificationHandle = " + notificationHandle.ToString());
 
-                    if (notificationHandle > 0) {
-                        Trace.WriteLine("deregistering the notificationHandle");
-                        client.DeleteDeviceNotification(notificationHandle);
-                    }
-                    Thread.Sleep(2000);
                 }
-                Trace.WriteLine("deregistering the AdsNotification");
-                client.AdsNotification -= Client_AdsNotification;
             }
-            catch (TwinCAT.Ads.AdsErrorException e) {
-                Console.WriteLine("Ads was NOT happy: " + e.Message);
+            catch (Exception e) {
+                Console.WriteLine(e.Message);
             }
-            catch {
-                Console.WriteLine("Not compatible with TwinCAT ADS.");
-            }
-
-        }
-
-        private static void Client_AdsSymbolVersionChanged(object? sender, AdsSymbolVersionChangedEventArgs e) {
-            Trace.WriteLine("AdsSymbolVersionChanged");
-            if (sender != null) {
-                Trace.WriteLine("    getting the AdsClient object");
-                AdsClient client = (AdsClient)sender;
-                Trace.WriteLine("    calling CleanupSymbolTable");
-                client.CleanupSymbolTable();
-                Trace.WriteLine("    setting notificationHandle = 0");
-                notificationHandle = 0;
-            }
-        }
-
-        private static void Client_AdsNotificationsInvalidated(object? sender, AdsNotificationsInvalidatedEventArgs e) {
-            Trace.WriteLine("Client_AdsNotificationsInvalidated()");
-            Trace.WriteLine("    setting notificationHandle to 0");
-            notificationHandle = 0;
         }
 
         private static void Client_AdsStateChanged(object? sender, AdsStateChangedEventArgs e) {
             Trace.WriteLine("AdsStateChanged(" + e.State.AdsState.ToString() + ")");
-            //AdsIsRunning = (e.State.AdsState == AdsState.Run);
+            AdsIsRunning = (e.State.AdsState == AdsState.Run);
+
+            if (sender == null) return;     // we need the AdsClient to do anything
+
+            AdsClient client = (AdsClient)sender;
+            if (e.State.AdsState == AdsState.Run) {
+                Thread.Sleep(100);
+                // register for notifications
+                Trace.WriteLine("registering for the AdsNotification event");
+                client.AdsNotification += Client_AdsNotification;
+
+                int size = sizeof(bool);
+                Trace.WriteLine("adding ready tag to the notification");
+                notificationHandle = client.AddDeviceNotification("vMessages.Msgs_SCP.Ready", size, new NotificationSettings(AdsTransMode.OnChange, 10, 0), null);
+                Trace.WriteLine("    returned handle " + notificationHandle.ToString());
+
+            }
+            if (e.State.AdsState == AdsState.Stop) {
+                client.TryDeleteDeviceNotification(notificationHandle);
+                client.AdsNotification -= Client_AdsNotification;
+                client.CleanupSymbolTable();
+            }
         }
+
+
+
+
+        //static async Task Main(string[] args) {
+
+        //    //CancellationToken cancel = CancellationToken.None;
+        //    try {
+        //        AdsClient client = new AdsClient();
+        //        // Connect to target
+        //        Trace.WriteLine("client.Connect()");
+        //        client.Connect(AmsNetId.Local, 851);
+
+
+        //        // I still want to do this even tho the docs say not to. Need to clarify with Beckhoff
+        //        Trace.WriteLine("registering for the AdsStateChanged event");
+        //        client.AdsStateChanged += Client_AdsStateChanged;
+
+        //        // supposed to trigger when the plc program has been restarted
+        //        Trace.WriteLine("registering for the AdsNotificationsInvalidated event");
+        //        client.AdsNotificationsInvalidated += Client_AdsNotificationsInvalidated;
+        //        Trace.WriteLine("registering for the AdsSymbolVersionChanged event");
+        //        client.AdsSymbolVersionChanged += Client_AdsSymbolVersionChanged;
+
+        //        // Add the Notification event handler
+        //        Trace.WriteLine("registering for the AdsNotification event");
+        //        client.AdsNotification += Client_AdsNotification;       // used with the buffer ready event
+
+        //        AdsIsRunning = true;    // testing a theory
+
+        //        while (!Quit) {
+        //            int size = sizeof(bool);
+        //            Trace.WriteLine("adding ready tag to the notification");
+        //            notificationHandle = client.AddDeviceNotification("vMessages.Msgs_SCP.Ready", size, new NotificationSettings(AdsTransMode.OnChange, 10, 0), null);
+        //            Trace.WriteLine("    returned handle " + notificationHandle.ToString());
+
+        //            while (AdsIsRunning && notificationHandle > 0) {
+        //                Thread.Sleep(1000);
+        //            }
+        //            Trace.WriteLine("Inner while loop exited.");
+        //            Trace.WriteLine("    AdsIsRunning = " + AdsIsRunning.ToString());
+        //            Trace.WriteLine("    notificationHandle = " + notificationHandle.ToString());
+
+        //            if (notificationHandle > 0) {
+        //                Trace.WriteLine("deregistering the notificationHandle");
+        //                client.DeleteDeviceNotification(notificationHandle);
+        //            }
+        //            Thread.Sleep(2000);
+        //        }
+        //        Trace.WriteLine("deregistering the AdsNotification");
+        //        client.AdsNotification -= Client_AdsNotification;
+        //    }
+        //    catch (TwinCAT.Ads.AdsErrorException e) {
+        //        Console.WriteLine("Ads was NOT happy: " + e.Message);
+        //    }
+        //    catch {
+        //        Console.WriteLine("Not compatible with TwinCAT ADS.");
+        //    }
+
+        //}
+
+        //private static void Client_AdsSymbolVersionChanged(object? sender, AdsSymbolVersionChangedEventArgs e) {
+        //    Trace.WriteLine("AdsSymbolVersionChanged");
+        //    if (sender != null) {
+        //        Trace.WriteLine("    getting the AdsClient object");
+        //        AdsClient client = (AdsClient)sender;
+        //        Trace.WriteLine("    calling CleanupSymbolTable");
+        //        client.CleanupSymbolTable();
+        //        Trace.WriteLine("    setting notificationHandle = 0");
+        //        notificationHandle = 0;
+        //    }
+        //}
+
+        //private static void Client_AdsNotificationsInvalidated(object? sender, AdsNotificationsInvalidatedEventArgs e) {
+        //    Trace.WriteLine("Client_AdsNotificationsInvalidated()");
+        //    Trace.WriteLine("    setting notificationHandle to 0");
+        //    notificationHandle = 0;
+        //}
+
+        //private static void Client_AdsStateChanged(object? sender, AdsStateChangedEventArgs e) {
+        //    Trace.WriteLine("AdsStateChanged(" + e.State.AdsState.ToString() + ")");
+        //    //AdsIsRunning = (e.State.AdsState == AdsState.Run);
+        //}
 
         static void Client_AdsNotification(object sender, AdsNotificationEventArgs e) {
             Trace.WriteLine("Client_AdsNotification()");

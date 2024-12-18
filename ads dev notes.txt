@@ -246,7 +246,7 @@ The code is the following:
 
     // Add the Notification event handler
     client.AdsNotification += Client_AdsNotification;       // used with the buffer ready event
-Notice that there was no Ads Error on the AdsNotificationsInvalidated event assignment. Odd.
+Notice that there was no Ads Error on the AdsNotificationsInvalidated event assignment. Odd; I was getting them yesterday.
 And no ads error on the simple AdsNotification.
 Continuing to step thru, it finally fatally faults on:
     notificationHandle = client.AddDeviceNotification("vMessages.Msgs_SCP.Ready"...
@@ -420,9 +420,39 @@ debugger:
         notificationHandle = 0
     AdsStateChanged(Run)
     adding ready tag to the notification
-    Exception thrown: 'TwinCAT.Ads.AdsErrorException' in TwinCAT.Ads.dll
+    Exception thrown: 'TwinCAT.Ads.AdsErrorException' in TwinCAT.Ads.dll    
+// why did this throw??? by the logging it was the adding the ready tag to the notifications
     The program '[400] NewAds.exe' has exited with code 0 (0x0).
 Console shows:
     "Symbol version is invalid"
     
+
+
+==================================================
+Regroup: What do I know so far???
+
+-when you make an on-line change and login with download the app gets the following events in this order:
+    1. Ads State change event to a STOP
+    2. Symbol Version change event
+-AdsNotificationsInvalidated seems to be useless today. what did I change to cause that?
+
+
+On program start these things need to happen:
+    create an AdsClient
+    Connect();
+    register a 
+    
+
+====================================================
+Totally re-wrote the app to allow AdsState changes to register tags and notifications
+
+
+
+
+
+
+
+
+
+
 

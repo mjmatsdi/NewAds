@@ -19,7 +19,7 @@ namespace NewAds
         static bool AdsIsRunning;
         static uint notificationHandle;
 
-        static async Task Main(string[] args) {
+        static void Main(string[] args) {
             while (!Quit) {
                 try {
                     AdsClient client = new AdsClient();
@@ -49,6 +49,7 @@ namespace NewAds
 
             AdsClient client = (AdsClient)sender;
             if (e.State.AdsState == AdsState.Run) {
+                if (!client.IsConnected) client.Connect(AmsNetId.Local, 851);
                 Thread.Sleep(100);
                 // register for notifications
                 Trace.WriteLine("registering for the AdsNotification event");
@@ -62,8 +63,14 @@ namespace NewAds
             }
             if (e.State.AdsState == AdsState.Stop) {
                 client.TryDeleteDeviceNotification(notificationHandle);
+                client.TryDeleteVariableHandle(notificationHandle);
                 client.AdsNotification -= Client_AdsNotification;
                 client.CleanupSymbolTable();
+                if (client.IsConnected) {
+                    client.Disconnect();
+                    Thread.Sleep(100);
+                    client.Connect(AmsNetId.Local, 851);
+                }
             }
         }
 

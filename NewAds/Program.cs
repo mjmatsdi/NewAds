@@ -20,28 +20,43 @@ namespace NewAds
         static uint notificationHandle;
 
         static void Main(string[] args) {
+            MsgMonitor mm = new MsgMonitor();
+            mm.MsgEvent += Mm_MsgEvent;
+            mm.Start();
+
             while (!Quit) {
                 try {
-                    AdsClient client = new AdsClient();
-                    // Connect to target
-                    Trace.WriteLine("client.Connect()");
-                    client.Connect(AmsNetId.Local, 851);
+                    Thread.Sleep(500);
+                    //AdsClient client = new AdsClient();
 
-                    Trace.WriteLine("registering for the AdsStateChanged event");
-                    client.AdsStateChanged += Client_AdsStateChanged;
+                    //// you only need to register for the event once, even if you disconnect later and reconnect
+                    //Trace.WriteLine("registering for the AdsStateChanged event");
+                    //client.AdsStateChanged += Client_AdsStateChanged;
 
-                    while (true) {
-                        Thread.Sleep(1000);
-                    }
+                    //// Connect to target
+                    //Trace.WriteLine("client.Connect()");
+                    //client.Connect(AmsNetId.Local, 851);
+
+
+                    //while (true) {
+                    //    Thread.Sleep(1000);
+                    //}
 
                 }
                 catch (Exception e) {
                     Console.WriteLine(e.Message);
                 }
             }
+            mm.Stop();
+        }
+
+        private static void Mm_MsgEvent(string text) {
+            Console.WriteLine(text);
+            Quit = (text.ToLower() == "quit");
         }
 
         private static void Client_AdsStateChanged(object? sender, AdsStateChangedEventArgs e) {
+            // note that this will not fire if you haven't connected
             Trace.WriteLine("AdsStateChanged(" + e.State.AdsState.ToString() + ")");
             AdsIsRunning = (e.State.AdsState == AdsState.Run);
 

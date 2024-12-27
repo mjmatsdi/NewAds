@@ -24,11 +24,15 @@ namespace NewAds
         }
 
         public void Start() {
-            client.Connect(AmsNetId.Local, 851);
-            client.AdsStateChanged += Client_AdsStateChanged;
+            if (!ConnActive) {
+                client.Connect(AmsNetId.Local, 851);
+                //client.AdsStateChanged += Client_AdsStateChanged;
+            }
         }
+
         public void Stop() {
             if (ConnActive) {
+                Trace.WriteLine("    removing .Ready tag monitoring");
                 client.TryDeleteDeviceNotification(notificationHandle);
                 client.TryDeleteVariableHandle(notificationHandle);
                 client.AdsNotification -= Client_AdsNotification;
@@ -47,13 +51,13 @@ namespace NewAds
             if (e.State.AdsState == AdsState.Run) {
                 if (!ConnActive) {
                     // register for notifications
-                    Trace.WriteLine("registering for the AdsNotification event");
+                    //Trace.WriteLine("registering for the AdsNotification event");
                     client.AdsNotification += Client_AdsNotification;
 
                     int size = sizeof(bool);
-                    Trace.WriteLine("adding ready tag to the notification");
+                    Trace.WriteLine("    adding .Ready tag monitoring");
                     notificationHandle = client.AddDeviceNotification("vMessages.Msgs_SCP.Ready", size, new NotificationSettings(AdsTransMode.OnChange, 10, 0), null);
-                    Trace.WriteLine("    returned handle " + notificationHandle.ToString());
+                    //Trace.WriteLine("    returned handle " + notificationHandle.ToString());
                     ConnActive = true;
                 }
             }
@@ -63,19 +67,20 @@ namespace NewAds
             }
         }
         private void Client_AdsNotification(object sender, AdsNotificationEventArgs e) {
-            Trace.WriteLine("Client_AdsNotification()");
-            Trace.WriteLine("    e.handle " + e.Handle.ToString());
-            Trace.WriteLine("    e.Data.Span[0] = " + e.Data.Span[0].ToString());
-            if (e.UserData != null)
-                Trace.WriteLine("    e.UserData = " + e.UserData.ToString());
+            Trace.WriteLine("New buffer data");
+            //Trace.WriteLine("Client_AdsNotification()");
+            //Trace.WriteLine("    e.handle " + e.Handle.ToString());
+            //Trace.WriteLine("    e.Data.Span[0] = " + e.Data.Span[0].ToString());
+            //if (e.UserData != null)
+            //    Trace.WriteLine("    e.UserData = " + e.UserData.ToString());
 
             Byte readyFlag = e.Data.Span[0];
 
             if (readyFlag > 0 && sender != null) {
                 AdsClient client = (AdsClient)sender;
-                Trace.WriteLine("    creating handle for the Ack tag");
+                //Trace.WriteLine("    creating handle for the Ack tag");
                 uint ackHandle = client.CreateVariableHandle("vMessages.Msgs_SCP.Ack");
-                Trace.WriteLine("    creating handle for the buffer tag");
+                //Trace.WriteLine("    creating handle for the buffer tag");
                 uint bufferHandle = client.CreateVariableHandle("vMessages.Msgs_SCP.Sending");
 
                 try {
@@ -83,23 +88,23 @@ namespace NewAds
                     int byteSize = 4000; // the buffer is actually 4K
                     PrimitiveTypeMarshaler converter = new PrimitiveTypeMarshaler(StringMarshaler.DefaultEncoding);
                     byte[] buffer = new byte[byteSize];
-                    Trace.WriteLine("    reading buffer tag");
+                    //Trace.WriteLine("    reading buffer tag");
                     int readBytes = client.Read(bufferHandle, buffer.AsMemory());
                     string value = null;
                     converter.Unmarshal<string>(buffer.AsSpan(), out value);
                     //Console.WriteLine("Buffer [" + value + "]");
                     MsgEvent(value);
 
-                    Trace.WriteLine("    setting the Ack tag = TRUE");
+                    //Trace.WriteLine("    setting the Ack tag = TRUE");
                     client.WriteAny(ackHandle, true);
                 }
                 catch {
                     Trace.WriteLine("    exception when processing sending buffer");
                 }
                 finally {
-                    Trace.WriteLine("    deleting handle for the buffer tag");
+                    //Trace.WriteLine("    deleting handle for the buffer tag");
                     client.DeleteVariableHandle(bufferHandle);
-                    Trace.WriteLine("    deleting handle for the ack tag");
+                    //Trace.WriteLine("    deleting handle for the ack tag");
                     client.DeleteVariableHandle(ackHandle);
                 }
 

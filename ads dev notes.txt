@@ -449,6 +449,59 @@ Totally re-wrote the app to allow AdsState changes to register tags and notifica
 
 
 
+====================================================
+I didn't activate the project after re-booting. I just started the app and I get this in the debugger:
+    Ads Error: 1 : [AdsClient:TwinCAT.Ads.Internal.INotificationReceiver.OnNotificationError()] 
+    Exception: Couldn't register for AdsState change Notifications on the connected ADS Server. 
+    Don't register for AdsClient.AdsStateChanged events! (Target port could not be found. 
+    (AdsErrorCode: 6, 0x6))
+After calling client.Connect(...) the client.IsConnected = TRUE so I can't rely on this to
+know whether I can register for the AdsChangeState event.
+
+---
+modified to only register for the RouterChange event and that succeeded and when I activated the PLC
+project I got a "Started" event.
+I wonder now, if I registered for the AdsChange if it would succeed?
+However, the PLC project never went into the remaining sequence of events like "put it in run mode?" then
+allowing you to download, etc. As a matter of fact I can't do anything with the PLC project. I killed my
+app to see if that un-stuck the PLC and nope.
+Also, in the XAE it's shows TC with a RED background and in the sys tray it shows as running.
+Shutting down XAE and restarting (reloading) the project. (my app is still shut down)
+PLC project loads up. Icon shows green (running).
+Starting my app... No router notification at all.
+PLC: log in and download to port 851
+App: nothing logged
+PLC: hit Run
+App: no change.
+PLC: activate
+App: "Started"
+PLC: put into config mode
+App: "Started". Yes, it did it again.
+
+Rebooting to see if this replicates
+
+On startup , I opened the PLC project and started my app. I was expecting some inital router event, like
+what happens with the Ads state event (even if nothing is going on, I still get an intial event). For the
+router event, nothing until there is an actual change.
+
+Also, the plc project seems fine. All the buttons are enabled as expected.
+
+My app is still running.
+PLC: activating project. Put in run mode. Login button is enabled.
+App: "Started"
+PLC: login and dopwnload to port 851
+App: nothing
+PLC: hit RUN
+
+
+
+
+
+
+
+
+
+
 
 
 

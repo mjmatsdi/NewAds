@@ -493,6 +493,25 @@ PLC: login and dopwnload to port 851
 App: nothing
 PLC: hit RUN
 
+Giving up on the router notifications
+thinking now is that I need to look at the ads state after connecting in the Start() function and
+then maybe spawn a thread to keep trying to connect every X seconds.
+
+Rebooting
+plc project is not loaded/activated or anything.
+App: 
+    Exception thrown: 'TwinCAT.Ads.AdsErrorException' in TwinCAT.Ads.dll
+    An unhandled exception of type 'TwinCAT.Ads.AdsErrorException' occurred in TwinCAT.Ads.dll
+    Target port could not be found. (AdsErrorCode: 6, 0x6)
+This occurred on the line that asks for the ADS state (client.ReadState();) immediately after .Connect(...)
+So I'm back at square one. FUCK!
+
+
+
+
+
+
+
 
 
 
